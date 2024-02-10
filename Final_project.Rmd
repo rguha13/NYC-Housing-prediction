@@ -62,6 +62,74 @@ head(data_filtered)
 
 EDA (Exploratory Data Analysis)
 ```{r}
+summary(data_filtered[, c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT', 'LATITUDE', 'LONGITUDE')]) # summary statistics for numeric variables
+```
 
+**Insights:**
+Price:
+The average house price is around 2.357 million. This suggests that the houses are quite expensive. The minimum price is 2494 which is quite low and the high is 2.147 billion which is extremely high. This shows quite a drastic range in house prices.
+
+Bed and Bath:
+The average house size is 3.357 beds and 2.374 baths (3 bed 2 bath). The minimum is 1 bed and no bath (could be an underdeveloped property), and the maximum is 50 beds and 50 baths (this could be a shared development/ apartment complex).
+
+Property size (in sqft):
+The average property size is 2184 sqft which is quite large. The minimum is 230 sqft and maximum is 65535 sqft which shows a large range of property sizes.
+
+```{r}
+plot(data_filtered$PROPERTYSQFT, data_filtered$PRICE, 
+     main = "Scatter Plot of Price vs. Property Size",
+     xlab = "Property Size (Sqft)",
+     ylab = "Price",
+     col = "blue")
+
+#We can tell from this graph that the 2.147 billion dollar house is a huge outlier and doesn't follow the overall distribution as the other houses in the dataset.
+```
+
+Grouping data by SUBLOCALITY and finding the mean of other features
+```{r}
+grouped_sublocality <- data_filtered %>%
+  group_by(SUBLOCALITY) %>%
+  summarise(
+    Mean_Price = mean(PRICE),
+    Mean_Beds = mean(BEDS),
+    Mean_Bath = mean(BATH),
+    Mean_PropertySqft = mean(PROPERTYSQFT)
+  )%>%
+  arrange(desc(Mean_Price))
+
+dim(grouped_sublocality) # 21x5 dataset
+
+grouped_sublocality # data by sub-locality in NYC and arranges in descending price
+```
+
+**Insights**
+New York County has the highest mean price of houses in the dataset and Rego Park has the lowest mean prices of houses in the dataset.
+
+Modifying the dataset for easier plotting
+```{r}
+grouped_sublocality <- grouped_sublocality %>%
+  mutate(
+    avg_price = round(Mean_Price / 10^6, 2),  # Display average price in millions
+    avg_beds = round(Mean_Beds, 2),   # Round number of bedrooms to 2 decimal places
+    avg_baths = round(Mean_Bath, 2),   # Round number of bathrooms to 2 decimal places
+    avg_propertsqft = round(Mean_PropertySqft)  # Round property size to whole number
+  )%>%
+  select(SUBLOCALITY,avg_price, avg_beds, avg_baths, avg_propertsqft)
+
+grouped_sublocality
+```
+
+EDA plots
+```{r}
+sublocalities_plot_price <- grouped_sublocality %>%
+  head(10) %>%
+  ggplot(aes(x = reorder(SUBLOCALITY, -avg_price), y = avg_price, fill = SUBLOCALITY)) +
+  geom_bar(stat = "identity", color = "black") +
+  labs(title = "Top 10 Sublocalities by Average Price",
+       x = "Sublocality",
+       y = "Average Price (Millions)")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+sublocalities_plot_price
 ```
 
