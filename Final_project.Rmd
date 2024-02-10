@@ -41,6 +41,9 @@ Key Features:
 Loading the required packages
 ```{r}
 require(tidyverse)
+library(ggplot2)
+library(scales)
+library(corrplot)
 ```
 
 
@@ -133,3 +136,34 @@ sublocalities_plot_price <- grouped_sublocality %>%
 sublocalities_plot_price
 ```
 
+Filtering data for key ares - New York County, Manhattan, Brooklyn, Dumbo
+```{r}
+#specifying key areas
+key_areas <- c('New York County', 'Dumbo', 'Manhattan', 'Brooklyn') 
+
+# Filtering data for selected key areas
+areas_data <- data_filtered[data_filtered$SUBLOCALITY %in% key_areas, ]
+
+ggplot(areas_data, aes(x = SUBLOCALITY, y = PRICE)) +
+  geom_boxplot(fill = "skyblue") +
+  labs(title = 'Price Distribution in Key NYC Areas',
+       x = 'Sublocality',
+       y = 'log price') +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::dollar_format(), trans = 'log')
+```
+
+Correlation analysis
+```{r}
+# Selecting columns for correlation analysis
+corr_columns <- c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')
+
+# Correlation Analysis
+correlation <- cor(data_filtered[corr_columns])
+
+# Plotting the correlation matrix
+corrplot(correlation, method = 'shade', col = colorRampPalette(c('darkgreen', 'white', 'blue'))(20))
+title('Correlation Matrix with Coefficients')
+```
+
+**Insights**
