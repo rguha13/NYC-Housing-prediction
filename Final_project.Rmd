@@ -11,7 +11,7 @@ urlcolor: cyan
 
 # Introduction
 
-The main aim of this project is to model the NYC housing data to determine the optimal house price. I will also be focusing on the house location and it's importance in the price.
+The main aim of this project is to model the NYC housing data to determine the optimal house price. I will also be focusing on the house location and it's importance in the price. The dataset is avaliable on kaggle - https://www.kaggle.com/datasets/nelgiriyewithana/new-york-housing-market/data
 
 Project objectives:
 Price Analysis: find the ideal price range for houses using predictive modeling. This will provide insights for investors and real estate agents to make informed decisions before purchasing a house in NYC.
@@ -36,4 +36,32 @@ Key Features:
 -`FORMATTED_ADDRESS`: Formatted address
 -`LATITUDE`: Latitude coordinate of the house
 -`LONGITUDE`: Longitude coordinate of the house
+
+
+Loading the required packages
+```{r}
+require(tidyverse)
+```
+
+
+Data exploration and cleaning
+```{r}
+data <- read.csv("NY-House-Dataset.csv")
+str(data) # structure of dataset
+dim(data) # the dataset contains 4801 rows and 17 columns
+colSums(is.na(data)) # checking for missing values per column - No missing values
+
+head(data) # viewing the first 6 rows
+
+data_filtered = data[,c('TYPE', 'PRICE', 'BEDS', 'BATH', 'STATE', 'PROPERTYSQFT', 'ADMINISTRATIVE_AREA_LEVEL_2', 'LOCALITY', 'SUBLOCALITY', 'STREET_NAME', 'LONG_NAME', 'LATITUDE', 'LONGITUDE')] # filtering data to keep relevant columns
+colnames(data_filtered) # verifying column names
+dim(data_filtered) # it is now a 4801x13 dataset
+head(data_filtered)
+```
+
+
+EDA (Exploratory Data Analysis)
+```{r}
+
+```
 
