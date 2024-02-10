@@ -99,7 +99,7 @@ grouped_sublocality <- data_filtered %>%
 
 dim(grouped_sublocality) # 21x5 dataset
 
-grouped_sublocality # data by sub-locality in NYC and arranges in descending price
+head(grouped_sublocality) # data by sub-locality in NYC and arranges in descending price
 ```
 
 **Insights**
@@ -116,7 +116,7 @@ grouped_sublocality <- grouped_sublocality %>%
   )%>%
   select(SUBLOCALITY,avg_price, avg_beds, avg_baths, avg_propertsqft)
 
-grouped_sublocality
+head(grouped_sublocality, 10)
 ```
 
 EDA plots
