@@ -38,32 +38,33 @@ Key Features:
 -`LONGITUDE`: Longitude coordinate of the house
 
 
-Loading the required packages
-```{r}
+## Loading the required packages
+```{r, warning = FALSE}
 require(tidyverse)
 library(ggplot2)
 library(scales)
 library(corrplot)
+library(caret)
+library(boot)
+library(MASS)
 ```
 
 
-Data exploration and cleaning
+## Data exploration and cleaning
 ```{r}
 data <- read.csv("NY-House-Dataset.csv")
-str(data) # structure of dataset
-dim(data) # the dataset contains 4801 rows and 17 columns
+#str(data) # structure of dataset
+#dim(data) # the dataset contains 4801 rows and 17 columns
 colSums(is.na(data)) # checking for missing values per column - No missing values
 
-head(data) # viewing the first 6 rows
-
-data_filtered = data[,c('TYPE', 'PRICE', 'BEDS', 'BATH', 'STATE', 'PROPERTYSQFT', 'ADMINISTRATIVE_AREA_LEVEL_2', 'LOCALITY', 'SUBLOCALITY', 'STREET_NAME', 'LONG_NAME', 'LATITUDE', 'LONGITUDE')] # filtering data to keep relevant columns
-colnames(data_filtered) # verifying column names
-dim(data_filtered) # it is now a 4801x13 dataset
+data_filtered = data[,c('TYPE', 'PRICE', 'BEDS', 'BATH', 'STATE', 'PROPERTYSQFT', 'LOCALITY', 'SUBLOCALITY', 'STREET_NAME', 'LONG_NAME', 'LATITUDE', 'LONGITUDE')] # filtering data to keep relevant columns
+#colnames(data_filtered) # verifying column names
+dim(data_filtered) # it is now a 4801x12 dataset
 head(data_filtered)
 ```
 
 
-EDA (Exploratory Data Analysis)
+## EDA (Exploratory Data Analysis)
 ```{r}
 summary(data_filtered[, c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT', 'LATITUDE', 'LONGITUDE')]) # summary statistics for numeric variables
 ```
@@ -84,11 +85,32 @@ plot(data_filtered$PROPERTYSQFT, data_filtered$PRICE,
      xlab = "Property Size (Sqft)",
      ylab = "Price",
      col = "blue")
-
-#We can tell from this graph that the 2.147 billion dollar house is a huge outlier and doesn't follow the overall distribution as the other houses in the dataset.
 ```
 
-Grouping data by SUBLOCALITY and finding the mean of other features
+We can tell from this graph that the 2.147 billion dollar house is a huge outlier and doesn't follow the overall distribution as the other houses in the dataset.Let us remove any outliers for this analysis and keep all the values which are within the IQR. We first find the first and third quantiles and then we calculate the upper and lower limits for the outliers (threshold). 
+
+```{r}
+#Remove outliers based on quantiles
+
+Q1 <- quantile(data_filtered$PRICE, 0.25)
+Q3 <- quantile(data_filtered$PRICE, 0.75)
+IQR <- Q3 - Q1
+threshold <- 1.5 * IQR
+data_filtered <- data_filtered[!(data_filtered$PRICE > (Q3 + threshold) | data_filtered$PRICE < (Q1 - threshold)), ]
+```
+
+Let's visualize the scatter plot now that the outliers are removed
+```{r}
+hist(data_filtered$PRICE, main = "Histogram of Price After Outlier Removal", xlab = "Price")
+
+plot(data_filtered$PROPERTYSQFT, data_filtered$PRICE, 
+     main = "Scatter Plot of Price vs. Property Size",
+     xlab = "Property Size (Sqft)",
+     ylab = "Price",
+     col = "blue")
+```
+
+### Grouping data by SUBLOCALITY and finding the mean of other features
 ```{r}
 grouped_sublocality <- data_filtered %>%
   group_by(SUBLOCALITY) %>%
@@ -100,7 +122,7 @@ grouped_sublocality <- data_filtered %>%
   )%>%
   arrange(desc(Mean_Price))
 
-dim(grouped_sublocality) # 21x5 dataset
+dim(grouped_sublocality) # 20x5 dataset
 
 head(grouped_sublocality) # data by sub-locality in NYC and arranges in descending price
 ```
@@ -110,23 +132,21 @@ New York County has the highest mean price of houses in the dataset and Rego Par
 
 Modifying the dataset for easier plotting
 ```{r}
-grouped_sublocality <- grouped_sublocality %>%
-  mutate(
-    avg_price = round(Mean_Price / 10^6, 2),  # Display average price in millions
-    avg_beds = round(Mean_Beds, 2),   # Round number of bedrooms to 2 decimal places
-    avg_baths = round(Mean_Bath, 2),   # Round number of bathrooms to 2 decimal places
-    avg_propertsqft = round(Mean_PropertySqft)  # Round property size to whole number
-  )%>%
-  select(SUBLOCALITY,avg_price, avg_beds, avg_baths, avg_propertsqft)
-
-head(grouped_sublocality, 10)
+grouped_sublocality_df <- data.frame(
+  Sublocality = grouped_sublocality$SUBLOCALITY,
+  Avg_Price = round(grouped_sublocality$Mean_Price / 10^6, 2),
+  Avg_Beds = round(grouped_sublocality$Mean_Beds, 2),
+  Avg_Baths = round(grouped_sublocality$Mean_Bath, 2),
+  Avg_PropertySqft = round(grouped_sublocality$Mean_PropertySqft)
+)
+head(grouped_sublocality_df, 10)
 ```
 
-EDA plots
+### EDA plots
 ```{r}
-sublocalities_plot_price <- grouped_sublocality %>%
+sublocalities_plot_price <- grouped_sublocality_df %>%
   head(10) %>%
-  ggplot(aes(x = reorder(SUBLOCALITY, -avg_price), y = avg_price, fill = SUBLOCALITY)) +
+  ggplot(aes(x = reorder(Sublocality, -Avg_price), y = Avg_price, fill = Sublocality)) +
   geom_bar(stat = "identity", color = "black") +
   labs(title = "Top 10 Sublocalities by Average Price",
        x = "Sublocality",
@@ -136,7 +156,7 @@ sublocalities_plot_price <- grouped_sublocality %>%
 sublocalities_plot_price
 ```
 
-Filtering data for key ares - New York County, Manhattan, Brooklyn, Dumbo
+### Filtering data for key ares - New York County, Manhattan, Brooklyn, Dumbo
 ```{r}
 #specifying key areas
 key_areas <- c('New York County', 'Dumbo', 'Manhattan', 'Brooklyn') 
@@ -153,7 +173,7 @@ ggplot(areas_data, aes(x = SUBLOCALITY, y = PRICE)) +
   scale_y_continuous(labels = scales::dollar_format(), trans = 'log')
 ```
 
-Correlation analysis
+## Correlation analysis
 ```{r}
 # Selecting columns for correlation analysis
 corr_columns <- c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')
@@ -162,8 +182,16 @@ corr_columns <- c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')
 correlation <- cor(data_filtered[corr_columns])
 
 # Plotting the correlation matrix
-corrplot(correlation, method = 'shade', col = colorRampPalette(c('darkgreen', 'white', 'blue'))(20))
+corrplot(correlation, method = 'number', col = colorRampPalette(c('darkgreen', 'white', 'blue'))(20))
 title('Correlation Matrix with Coefficients')
 ```
 
 **Insights**
+
+# Linear Regression Model
+```{r}
+fit <- lm(PRICE ~ BEDS + BATH + PROPERTYSQFT,data=data_filtered)
+step <- stepAIC(fit, direction="both")
+step$anova
+```
+
