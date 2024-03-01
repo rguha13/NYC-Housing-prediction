@@ -47,6 +47,7 @@ library(corrplot)
 library(caret)
 library(boot)
 library(MASS)
+library(randomForest)
 ```
 
 
@@ -146,7 +147,7 @@ head(grouped_sublocality_df, 10)
 ```{r}
 sublocalities_plot_price <- grouped_sublocality_df %>%
   head(10) %>%
-  ggplot(aes(x = reorder(Sublocality, -Avg_price), y = Avg_price, fill = Sublocality)) +
+  ggplot(aes(x = reorder(Sublocality, -Avg_Price), y = Avg_Price, fill = Sublocality)) +
   geom_bar(stat = "identity", color = "black") +
   labs(title = "Top 10 Sublocalities by Average Price",
        x = "Sublocality",
@@ -188,10 +189,87 @@ title('Correlation Matrix with Coefficients')
 
 **Insights**
 
-# Linear Regression Model
+# Predictive Modeling
+
+Visualizing the number of distinct values in each column of the filtered dataset
 ```{r}
-fit <- lm(PRICE ~ BEDS + BATH + PROPERTYSQFT,data=data_filtered)
-step <- stepAIC(fit, direction="both")
-step$anova
+distinct_value_counts <- sapply(data_filtered, function(col) length(unique(col)))
+distinct_value_counts
 ```
+
+Display unique value counts for the top 5 values in each column
+```{r}
+unique_value_counts <- lapply(data_filtered, function(col) head(table(col), 5))
+unique_value_counts
+```
+
+Standardize the 'PRICE' column 
+```{r}
+data_filtered$PRICE_standardized <- scale(data_filtered$PRICE)
+
+#Sorting the DataFrame by 'PRICE_standardized' in descending order
+sorted_data <- data_filtered[order(-data_filtered$PRICE_standardized), ]
+
+# Exclude the top 2 rows
+sorted_data <- sorted_data[-(1:2), ]
+
+head(sorted_data[,c("PRICE", "PRICE_standardized")])
+
+#dimensions of the sorted data
+dim(sorted_data) 
+```
+
+Grouping for sub-locality using the sorted data and generating a boxplot of prices for each sublocality.
+```{r}
+ggplot(data_filtered, aes(x = SUBLOCALITY, y = PRICE_standardized)) +
+  geom_boxplot(outlier.shape = NA) +  # Removing outliers from the plot
+  labs(title = 'Boxplot of Prices for Each Sublocality (Adjusted for Outliers)',
+       x = 'SUBLOCALITY',
+       y = 'PRICE') +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  
+```
+
+Calculating average price by sublocality for the sorted data
+```{r}
+average_prices <- sorted_data %>%
+  group_by(SUBLOCALITY) %>%
+  summarise(Average_Price = mean(PRICE, na.rm = TRUE))
+
+ggplot(average_prices, aes(x = SUBLOCALITY, y = Average_Price, fill = SUBLOCALITY)) +
+  geom_bar(stat = "identity") +
+  labs(title = 'Average Prices by Sublocality',
+       x = 'Sublocality',
+       y = 'Average Price') +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = 'none')
+
+```
+
+Encoding 'SUBLOCALITY'
+```{r}
+data_filtered$SUBLOCALITY_encoded <- as.integer(as.factor(data_filtered$SUBLOCALITY))
+```
+
+Selecting the features (X) and the target (Y)
+```{r}
+X <- data_filtered[, c('SUBLOCALITY_encoded', 'BEDS', 'BATH', 'PROPERTYSQFT')]
+Y <- data_filtered$PRICE
+```
+
+Splitting the data into training and testing sets
+```{r}
+set.seed(42)
+train_indices <- createDataPartition(Y, p = 0.8, list = FALSE)
+train_data <- data_filtered[train_indices, ]
+test_data <- data_filtered[-train_indices, ]
+dim(train_data)
+dim(test_data)
+```
+
+Building linear model
+```{r}
+train_fit<- lm(PRICE~ SUBLOCALITY_encoded + BEDS + BATH + PROPERTYSQFT, data = train_data)
+summary(train_fit)
+```
+
 
