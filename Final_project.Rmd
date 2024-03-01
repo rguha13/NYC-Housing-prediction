@@ -48,6 +48,7 @@ library(caret)
 library(boot)
 library(MASS)
 library(randomForest)
+library(tree)
 ```
 
 
@@ -58,7 +59,7 @@ data <- read.csv("NY-House-Dataset.csv")
 #dim(data) # the dataset contains 4801 rows and 17 columns
 colSums(is.na(data)) # checking for missing values per column - No missing values
 
-data_filtered = data[,c('TYPE', 'PRICE', 'BEDS', 'BATH', 'STATE', 'PROPERTYSQFT', 'LOCALITY', 'SUBLOCALITY', 'STREET_NAME', 'LONG_NAME', 'LATITUDE', 'LONGITUDE')] # filtering data to keep relevant columns
+data_filtered = data[,c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT', 'SUBLOCALITY', 'STREET_NAME', 'LONG_NAME')] # filtering data to keep relevant columns
 #colnames(data_filtered) # verifying column names
 dim(data_filtered) # it is now a 4801x12 dataset
 head(data_filtered)
@@ -67,7 +68,7 @@ head(data_filtered)
 
 ## EDA (Exploratory Data Analysis)
 ```{r}
-summary(data_filtered[, c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT', 'LATITUDE', 'LONGITUDE')]) # summary statistics for numeric variables
+summary(data_filtered[, c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')]) # summary statistics for numeric variables
 ```
 
 **Insights:**
@@ -80,36 +81,101 @@ The average house size is 3.357 beds and 2.374 baths (3 bed 2 bath). The minimum
 Property size (in sqft):
 The average property size is 2184 sqft which is quite large. The minimum is 230 sqft and maximum is 65535 sqft which shows a large range of property sizes.
 
+### Scatter plots of our target variables vs. PRICE
 ```{r}
+par(mfrow = c(1,3))
 plot(data_filtered$PROPERTYSQFT, data_filtered$PRICE, 
-     main = "Scatter Plot of Price vs. Property Size",
+     main = "Price vs. Property Size",
      xlab = "Property Size (Sqft)",
      ylab = "Price",
      col = "blue")
+plot(data_filtered$BEDS, data_filtered$PRICE, 
+     main = "Price vs. Property Size",
+     xlab = "Property Size (Sqft)",
+     ylab = "Price",
+     col = "green")
+plot(data_filtered$BATH, data_filtered$PRICE, 
+     main = "Price vs. Property Size",
+     xlab = "Property Size (Sqft)",
+     ylab = "Price",
+     col = "orange")
 ```
 
-We can tell from this graph that the 2.147 billion dollar house is a huge outlier and doesn't follow the overall distribution as the other houses in the dataset.Let us remove any outliers for this analysis and keep all the values which are within the IQR. We first find the first and third quantiles and then we calculate the upper and lower limits for the outliers (threshold). 
-
+### Histograms for all of our target variables - PRICE, BATH, BEDS, PROPERTYSQFT
 ```{r}
-#Remove outliers based on quantiles
+par(mfrow=c(2, 2))  # Set up a 2x2 grid for subplots
 
-Q1 <- quantile(data_filtered$PRICE, 0.25)
-Q3 <- quantile(data_filtered$PRICE, 0.75)
-IQR <- Q3 - Q1
-threshold <- 1.5 * IQR
-data_filtered <- data_filtered[!(data_filtered$PRICE > (Q3 + threshold) | data_filtered$PRICE < (Q1 - threshold)), ]
+# Histogram for 'PRICE'
+hist(data_filtered$PRICE, main = "Histogram of Price", ylab = "Frequency", col = "skyblue")
+
+# Histogram for 'BEDS'
+hist(data_filtered$BEDS, main = "Histogram of Beds", ylab = "Frequency", col = "green")
+
+# Histogram for 'BATH'
+hist(data_filtered$BATH, main = "Histogram of Baths", ylab = "Frequency", col = "orange")
+
+# Histogram for 'PROPERTYSQFT'
+hist(data_filtered$PROPERTYSQFT, main = "Histogram of Property Size", ylab = "Frequency", col = "pink")
+```
+
+We can tell from these graphs that there is evidence of outliers in the data which does not follow the overall distribution of the data. Let us remove any outliers for this analysis and keep all the values which are within the IQR. We first find the first and third quantiles and then we calculate the upper and lower limits for the outliers (threshold). 
+
+### Outlier Removal
+```{r}
+remove_outliers <- function(data, variables, threshold = 1.5) {
+  for (variable in variables) {
+    Q1 <- quantile(data[[variable]], 0.25)
+    Q3 <- quantile(data[[variable]], 0.75)
+    IQR <- Q3 - Q1
+    data <- data[!(data[[variable]] > (Q3 + threshold * IQR) | data[[variable]] < (Q1 - threshold * IQR)), ]
+  }
+  return(data)
+}
+
+# variables for which we want to remove outliers
+variables_out <- c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')
+
+data_filtered <- remove_outliers(data_filtered, variables_out)
+```
+
+Visualizing the histograms for all of our target variables - PRICE, BATH, BEDS, PROPERTYSQFT once the outliers have been removed.
+```{r}
+par(mfrow=c(2, 2))  # Set up a 2x2 grid for subplots
+
+# Histogram for 'PRICE'
+hist(data_filtered$PRICE, main = "Histogram of Price", ylab = "Frequency", col = "skyblue")
+
+# Histogram for 'BEDS'
+hist(data_filtered$BEDS, main = "Histogram of Beds", ylab = "Frequency", col = "green")
+
+# Histogram for 'BATH'
+hist(data_filtered$BATH, main = "Histogram of Baths", ylab = "Frequency", col = "orange")
+
+# Histogram for 'PROPERTYSQFT'
+hist(data_filtered$PROPERTYSQFT, main = "Histogram of Property Size", ylab = "Frequency", col = "pink")
 ```
 
 Let's visualize the scatter plot now that the outliers are removed
 ```{r}
-hist(data_filtered$PRICE, main = "Histogram of Price After Outlier Removal", xlab = "Price")
-
+par(mfrow = c(1,3))
 plot(data_filtered$PROPERTYSQFT, data_filtered$PRICE, 
-     main = "Scatter Plot of Price vs. Property Size",
+     main = "Price vs. Property Size",
      xlab = "Property Size (Sqft)",
      ylab = "Price",
      col = "blue")
+plot(data_filtered$BEDS, data_filtered$PRICE, 
+     main = "Price vs. Property Size",
+     xlab = "Property Size (Sqft)",
+     ylab = "Price",
+     col = "green")
+plot(data_filtered$BATH, data_filtered$PRICE, 
+     main = "Price vs. Property Size",
+     xlab = "Property Size (Sqft)",
+     ylab = "Price",
+     col = "orange")
+
 ```
+
 
 ### Grouping data by SUBLOCALITY and finding the mean of other features
 ```{r}
@@ -122,8 +188,6 @@ grouped_sublocality <- data_filtered %>%
     Mean_PropertySqft = mean(PROPERTYSQFT)
   )%>%
   arrange(desc(Mean_Price))
-
-dim(grouped_sublocality) # 20x5 dataset
 
 head(grouped_sublocality) # data by sub-locality in NYC and arranges in descending price
 ```
@@ -245,7 +309,7 @@ ggplot(average_prices, aes(x = SUBLOCALITY, y = Average_Price, fill = SUBLOCALIT
 
 ```
 
-Encoding 'SUBLOCALITY'
+Encoding categorical variables
 ```{r}
 data_filtered$SUBLOCALITY_encoded <- as.integer(as.factor(data_filtered$SUBLOCALITY))
 ```
@@ -253,7 +317,7 @@ data_filtered$SUBLOCALITY_encoded <- as.integer(as.factor(data_filtered$SUBLOCAL
 Selecting the features (X) and the target (Y)
 ```{r}
 X <- data_filtered[, c('SUBLOCALITY_encoded', 'BEDS', 'BATH', 'PROPERTYSQFT')]
-Y <- data_filtered$PRICE
+Y <- data_filtered$PRICE_standardized
 ```
 
 Splitting the data into training and testing sets
@@ -262,14 +326,68 @@ set.seed(42)
 train_indices <- createDataPartition(Y, p = 0.8, list = FALSE)
 train_data <- data_filtered[train_indices, ]
 test_data <- data_filtered[-train_indices, ]
-dim(train_data)
-dim(test_data)
+
+# testing set
+X_test <- test_data[, c('SUBLOCALITY_encoded', 'BEDS', 'BATH', 'PROPERTYSQFT')]
+Y_test <- test_data$PRICE
+
+# training set
+X_train <- train_data[, c('SUBLOCALITY_encoded', 'BEDS', 'BATH', 'PROPERTYSQFT')]
+Y_train <- train_data$PRICE
 ```
 
-Building linear model
+# Random Forest Classifer 
 ```{r}
-train_fit<- lm(PRICE~ SUBLOCALITY_encoded + BEDS + BATH + PROPERTYSQFT, data = train_data)
-summary(train_fit)
+rf_model <- randomForest(PRICE_standardized ~ ., data = train_data, ntree = 100)
+print(rf_model)
 ```
+
+Now we can use the trained model to make predictions based on the test set
+```{r}
+rf_predictions <- predict(rf_model, newdata = test_data)
+
+# Evaluate the performance of the Random Forest model
+rf_mse <- mean((rf_predictions - test_data$PRICE_standardized)^2)
+rf_rmse <- sqrt(rf_mse)
+rf_r_squared <- 1 - (rf_mse / var(test_data$PRICE))
+
+cat("Mean Squared Error (MSE):", rf_mse, "\n")
+cat("Root Mean Squared Error (RMSE):", rf_rmse, "\n")
+cat("R-squared:", rf_r_squared, "\n")
+```
+
+**Insights:** 
+- Low MSE and RMSE: A low MSE and RMSE indicate that the model's predictions are close to the actual values. 
+- R-squared: An R-squared of 1 indicates that the model perfectly predicts the variation in the target variable.
+
+
+# Inferences
+
+Visualizing the predicted values against the actual values to see how well the model aligns with the true outcomes.
+```{r}
+plot(test_data$PRICE_standardized, rf_predictions, 
+     main = "Actual vs. Predicted Prices",
+     xlab = "Actual Prices",
+     ylab = "Predicted Prices",
+     col = "blue")
+abline(0, 1, col = "red")
+```
+
+Residual Analysis
+```{r}
+residuals <- rf_predictions - test_data$PRICE_standardized
+plot(rf_predictions, residuals, 
+     main = "Residual Analysis",
+     xlab = "Predicted Prices",
+     ylab = "Residuals",
+     col = "green")
+abline(h = 0, col = "red")
+```
+
+Feature Importance
+```{r}
+varImpPlot(rf_model, main = "Variable Importance Plot")
+```
+
 
 
