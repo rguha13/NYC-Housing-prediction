@@ -39,8 +39,8 @@ Key Features:
 
 
 ## Loading the required packages
-```{r, warning = FALSE}
-require(tidyverse)
+```{r loading packages, warning = FALSE}
+library(tidyverse)
 library(ggplot2)
 library(scales)
 library(corrplot)
@@ -49,11 +49,15 @@ library(boot)
 library(MASS)
 library(randomForest)
 library(tree)
+library(xtable)
+library(e1071)
 ```
 
 
 ## Data exploration and cleaning
-```{r}
+
+First, let us load in the dataset and drop any columns not relevant for our analysis.
+```{r loading dataset}
 data <- read.csv("NY-House-Dataset.csv")
 #str(data) # structure of dataset
 #dim(data) # the dataset contains 4801 rows and 17 columns
@@ -61,14 +65,21 @@ colSums(is.na(data)) # checking for missing values per column - No missing value
 
 data_filtered = data[,c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT', 'SUBLOCALITY', 'STREET_NAME', 'LONG_NAME')] # filtering data to keep relevant columns
 #colnames(data_filtered) # verifying column names
-dim(data_filtered) # it is now a 4801x12 dataset
+dim(data_filtered) # it is now a 4801x7 dataset
 head(data_filtered)
+# latex_table <- xtable(head(data_filtered))
+# print(latex_table, include.rownames = FALSE)
 ```
 
+The filtered dataset has 4801 rows and 7 columns. The columns are - **PRICE, BEDS, BATH, PROPERTYSQFT, SUBLOCALITY, STREET_NAME, LONG_NAME**.
 
 ## EDA (Exploratory Data Analysis)
-```{r}
-summary(data_filtered[, c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')]) # summary statistics for numeric variables
+
+Obtaining summary statistics for numeric variables in the dataset
+```{r summary}
+summary(data_filtered[, c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')])
+# latex_table3 <- xtable(summary(data_filtered[, c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')]))
+# print(latex_table3, include.rownames = FALSE)
 ```
 
 **Insights:**
@@ -81,8 +92,9 @@ The average house size is 3.357 beds and 2.374 baths (3 bed 2 bath). The minimum
 Property size (in sqft):
 The average property size is 2184 sqft which is quite large. The minimum is 230 sqft and maximum is 65535 sqft which shows a large range of property sizes.
 
-### Scatter plots of our target variables vs. PRICE
-```{r}
+Scatter plots of our target variables vs. PRICE
+```{r scatterplot pre-outlier}
+# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig1.png")
 par(mfrow = c(1,3))
 plot(data_filtered$PROPERTYSQFT, data_filtered$PRICE, 
      main = "Price vs. Property Size",
@@ -90,39 +102,43 @@ plot(data_filtered$PROPERTYSQFT, data_filtered$PRICE,
      ylab = "Price",
      col = "blue")
 plot(data_filtered$BEDS, data_filtered$PRICE, 
-     main = "Price vs. Property Size",
-     xlab = "Property Size (Sqft)",
+     main = "Price vs. Beds",
+     xlab = "Beds",
      ylab = "Price",
      col = "green")
 plot(data_filtered$BATH, data_filtered$PRICE, 
-     main = "Price vs. Property Size",
-     xlab = "Property Size (Sqft)",
+     main = "Price vs. Baths",
+     xlab = "Baths",
      ylab = "Price",
      col = "orange")
+# dev.off()
 ```
+From the scatterplots, most of the datapoints are concentrated in the lower left corner of the plot. This is evidence of large outliers in the data which need to be investigated.
 
-### Histograms for all of our target variables - PRICE, BATH, BEDS, PROPERTYSQFT
-```{r}
+Histograms for all of our target variables - PRICE, BATH, BEDS, PROPERTYSQFT
+```{r histogram pre outlier}
+# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig2.png")
 par(mfrow=c(2, 2))  # Set up a 2x2 grid for subplots
 
 # Histogram for 'PRICE'
-hist(data_filtered$PRICE, main = "Histogram of Price", ylab = "Frequency", col = "skyblue")
+hist(data_filtered$PRICE, main = "Histogram of Price", ylab = "Frequency", xlab = "Price", col = "skyblue")
 
 # Histogram for 'BEDS'
-hist(data_filtered$BEDS, main = "Histogram of Beds", ylab = "Frequency", col = "green")
+hist(data_filtered$BEDS, main = "Histogram of Beds", ylab = "Frequency", xlab = "Beds", col = "green")
 
 # Histogram for 'BATH'
-hist(data_filtered$BATH, main = "Histogram of Baths", ylab = "Frequency", col = "orange")
+hist(data_filtered$BATH, main = "Histogram of Baths", ylab = "Frequency", xlab = "Baths", col = "orange")
 
 # Histogram for 'PROPERTYSQFT'
-hist(data_filtered$PROPERTYSQFT, main = "Histogram of Property Size", ylab = "Frequency", col = "pink")
+hist(data_filtered$PROPERTYSQFT, main = "Histogram of Property Size", ylab = "Frequency", xlab = "Property size", col = "pink")
+# dev.off()
 ```
 
-We can tell from these graphs that there is evidence of outliers in the data which does not follow the overall distribution of the data. Let us remove any outliers for this analysis and keep all the values which are within the IQR. We first find the first and third quantiles and then we calculate the upper and lower limits for the outliers (threshold). 
+We can tell from these histograms as well as the scatter plots above, that there is evidence of outliers in the data which does not follow the overall distribution of the data. Let us remove any outliers for this analysis and keep all the values which are within the IQR. We first find the first and third quantiles and then we calculate the upper and lower limits for the outliers (threshold). 
 
-### Outlier Removal
-```{r}
-remove_outliers <- function(data, variables, threshold = 1.5) {
+Outlier Removal
+```{r outliers}
+remove_outliers <- function(data, variables, threshold = 1.35) {
   for (variable in variables) {
     Q1 <- quantile(data[[variable]], 0.25)
     Q3 <- quantile(data[[variable]], 0.75)
@@ -138,25 +154,9 @@ variables_out <- c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')
 data_filtered <- remove_outliers(data_filtered, variables_out)
 ```
 
-Visualizing the histograms for all of our target variables - PRICE, BATH, BEDS, PROPERTYSQFT once the outliers have been removed.
-```{r}
-par(mfrow=c(2, 2))  # Set up a 2x2 grid for subplots
-
-# Histogram for 'PRICE'
-hist(data_filtered$PRICE, main = "Histogram of Price", ylab = "Frequency", col = "skyblue")
-
-# Histogram for 'BEDS'
-hist(data_filtered$BEDS, main = "Histogram of Beds", ylab = "Frequency", col = "green")
-
-# Histogram for 'BATH'
-hist(data_filtered$BATH, main = "Histogram of Baths", ylab = "Frequency", col = "orange")
-
-# Histogram for 'PROPERTYSQFT'
-hist(data_filtered$PROPERTYSQFT, main = "Histogram of Property Size", ylab = "Frequency", col = "pink")
-```
-
 Let's visualize the scatter plot now that the outliers are removed
-```{r}
+```{r scatterplot post outlier}
+# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig3.png")
 par(mfrow = c(1,3))
 plot(data_filtered$PROPERTYSQFT, data_filtered$PRICE, 
      main = "Price vs. Property Size",
@@ -164,15 +164,67 @@ plot(data_filtered$PROPERTYSQFT, data_filtered$PRICE,
      ylab = "Price",
      col = "blue")
 plot(data_filtered$BEDS, data_filtered$PRICE, 
-     main = "Price vs. Property Size",
-     xlab = "Property Size (Sqft)",
+     main = "Price vs. Beds",
+     xlab = "Beds",
      ylab = "Price",
      col = "green")
 plot(data_filtered$BATH, data_filtered$PRICE, 
-     main = "Price vs. Property Size",
-     xlab = "Property Size (Sqft)",
+     main = "Price vs. Baths",
+     xlab = "Baths",
      ylab = "Price",
      col = "orange")
+# dev.off()
+```
+We can see from these adjusted scatterplots, that once the outliers based on IQR have been removed, the scatter is quite random. We can see that BEDS and BATH are categorical variables and PROPERTYSQFT is continuous. 
+
+
+Visualizing the histograms for all of our target variables - PRICE, BATH, BEDS, PROPERTYSQFT once the outliers have been removed.
+```{r histogram post outlier}
+#png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig4.png")
+par(mfrow=c(2, 2))  # Set up a 2x2 grid for subplots
+
+# Histogram for 'PRICE'
+hist(data_filtered$PRICE, main = "Histogram of Price", ylab = "Frequency", xlab = "Price", col = "skyblue", freq = FALSE)
+lines(density(data_filtered$PRICE), col = "darkblue", lwd = 1)
+
+# Histogram for 'BEDS'
+hist(data_filtered$BEDS, main = "Histogram of Beds", ylab = "Frequency", xlab = "Beds", col = "green", freq = FALSE)
+lines(density(data_filtered$BEDS), col = "darkgreen", lwd = 1)
+
+# Histogram for 'BATH'
+hist(data_filtered$BATH, main = "Histogram of Baths", ylab = "Frequency", xlab = "Baths", col = "orange", freq = FALSE)
+lines(density(data_filtered$BATH), col = "darkorange", lwd = 1)
+
+# Histogram for 'PROPERTYSQFT'
+hist(data_filtered$PROPERTYSQFT, main = "Histogram of Property Size", ylab = "Frequency", xlab = "Property size", col = "pink", freq = FALSE)
+lines(density(data_filtered$PROPERTYSQFT), col = "red", lwd = 1)
+#dev.off()
+```
+
+Log Transformation of PRICE
+```{r}
+# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig9.png")
+qqnorm(data_filtered$PRICE)
+qqline(data_filtered$PRICE, col = 2)
+# dev.off()
+
+# Log-transform 'PRICE'
+data_filtered$log_PRICE <- log(data_filtered$PRICE)
+
+# Create a histogram with density plot for log-transformed 'PRICE'
+hist(data_filtered$log_PRICE, main = "Density Plot of Log-Transformed Price", ylab = "Density", xlab = "Log(Price)", col = "skyblue", freq = FALSE)
+
+# Add a density curve
+lines(density(data_filtered$log_PRICE), col = "darkblue", lwd = 1)
+
+# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig10.png")
+qqnorm(data_filtered$log_PRICE)
+qqline(data_filtered$log_PRICE, col = 2)
+# dev.off()
+
+# str(data_filtered)
+sapply(data_filtered[,c("PRICE", "BEDS", "BATH", "PROPERTYSQFT")], skewness)
+sapply(data_filtered[,c("log_PRICE", "BEDS", "BATH", "PROPERTYSQFT")], skewness)
 
 ```
 
@@ -199,7 +251,7 @@ Modifying the dataset for easier plotting
 ```{r}
 grouped_sublocality_df <- data.frame(
   Sublocality = grouped_sublocality$SUBLOCALITY,
-  Avg_Price = round(grouped_sublocality$Mean_Price / 10^6, 2),
+  Avg_Price = round(grouped_sublocality$Mean_Price, 2),
   Avg_Beds = round(grouped_sublocality$Mean_Beds, 2),
   Avg_Baths = round(grouped_sublocality$Mean_Bath, 2),
   Avg_PropertySqft = round(grouped_sublocality$Mean_PropertySqft)
@@ -209,6 +261,7 @@ head(grouped_sublocality_df, 10)
 
 ### EDA plots
 ```{r}
+#png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig5.png")
 sublocalities_plot_price <- grouped_sublocality_df %>%
   head(10) %>%
   ggplot(aes(x = reorder(Sublocality, -Avg_Price), y = Avg_Price, fill = Sublocality)) +
@@ -219,10 +272,12 @@ sublocalities_plot_price <- grouped_sublocality_df %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 sublocalities_plot_price
+#dev.off()
 ```
 
 ### Filtering data for key ares - New York County, Manhattan, Brooklyn, Dumbo
 ```{r}
+#png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig6.png")
 #specifying key areas
 key_areas <- c('New York County', 'Dumbo', 'Manhattan', 'Brooklyn') 
 
@@ -236,61 +291,19 @@ ggplot(areas_data, aes(x = SUBLOCALITY, y = PRICE)) +
        y = 'log price') +
   theme_minimal() +
   scale_y_continuous(labels = scales::dollar_format(), trans = 'log')
-```
-
-## Correlation analysis
-```{r}
-# Selecting columns for correlation analysis
-corr_columns <- c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')
-
-# Correlation Analysis
-correlation <- cor(data_filtered[corr_columns])
-
-# Plotting the correlation matrix
-corrplot(correlation, method = 'number', col = colorRampPalette(c('darkgreen', 'white', 'blue'))(20))
-title('Correlation Matrix with Coefficients')
-```
-
-**Insights**
-
-# Predictive Modeling
-
-Visualizing the number of distinct values in each column of the filtered dataset
-```{r}
-distinct_value_counts <- sapply(data_filtered, function(col) length(unique(col)))
-distinct_value_counts
-```
-
-Display unique value counts for the top 5 values in each column
-```{r}
-unique_value_counts <- lapply(data_filtered, function(col) head(table(col), 5))
-unique_value_counts
-```
-
-Standardize the 'PRICE' column 
-```{r}
-data_filtered$PRICE_standardized <- scale(data_filtered$PRICE)
-
-#Sorting the DataFrame by 'PRICE_standardized' in descending order
-sorted_data <- data_filtered[order(-data_filtered$PRICE_standardized), ]
-
-# Exclude the top 2 rows
-sorted_data <- sorted_data[-(1:2), ]
-
-head(sorted_data[,c("PRICE", "PRICE_standardized")])
-
-#dimensions of the sorted data
-dim(sorted_data) 
+#dev.off()
 ```
 
 Grouping for sub-locality using the sorted data and generating a boxplot of prices for each sublocality.
 ```{r}
-ggplot(data_filtered, aes(x = SUBLOCALITY, y = PRICE_standardized)) +
+#png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig7.png")
+ggplot(data_filtered, aes(x = SUBLOCALITY, y = log_PRICE)) +
   geom_boxplot(outlier.shape = NA) +  # Removing outliers from the plot
   labs(title = 'Boxplot of Prices for Each Sublocality (Adjusted for Outliers)',
        x = 'SUBLOCALITY',
-       y = 'PRICE') +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  
+       y = 'log(PRICE)') +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+#dev.off()
 ```
 
 Calculating average price by sublocality for the sorted data
@@ -299,6 +312,7 @@ average_prices <- sorted_data %>%
   group_by(SUBLOCALITY) %>%
   summarise(Average_Price = mean(PRICE, na.rm = TRUE))
 
+#png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig8.png")
 ggplot(average_prices, aes(x = SUBLOCALITY, y = Average_Price, fill = SUBLOCALITY)) +
   geom_bar(stat = "identity") +
   labs(title = 'Average Prices by Sublocality',
@@ -306,54 +320,85 @@ ggplot(average_prices, aes(x = SUBLOCALITY, y = Average_Price, fill = SUBLOCALIT
        y = 'Average Price') +
   theme(axis.text.x = element_text(angle = 45, hjust = 1), 
         legend.position = 'none')
-
+#dev.off()
 ```
 
+
+## Correlation analysis
+```{r}
+# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig13.png")
+# Selecting columns for correlation analysis
+corr_columns <- c('log_PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')
+
+# Correlation Analysis
+correlation <- cor(data_filtered[corr_columns])
+
+# Plotting the correlation matrix with smaller size and adjusted label size
+corrplot(
+  correlation,
+  method = 'color',  # Use color fill for cells
+  col = colorRampPalette(c('red', 'white', 'blue'))(20),
+  addCoef.col = 'black',
+  number.cex = 0.7,  # Adjust the font size of the coefficients
+  tl.cex = 0.7,     # Adjust the font size of the variable labels
+  title = 'Correlation Matrix with Coefficients',
+  mar = c(1, 1, 1, 1)  # Adjust the margin to prevent overlap
+)
+# dev.off()
+```
+
+# Predictive Modeling
 Encoding categorical variables
 ```{r}
 data_filtered$SUBLOCALITY_encoded <- as.integer(as.factor(data_filtered$SUBLOCALITY))
+# latex_table4 <- xtable(head(data_filtered[,c("SUBLOCALITY", "SUBLOCALITY_encoded")]))
+# print(latex_table4, include.rownames = FALSE)
 ```
 
 Selecting the features (X) and the target (Y)
 ```{r}
-X <- data_filtered[, c('SUBLOCALITY_encoded', 'BEDS', 'BATH', 'PROPERTYSQFT')]
-Y <- data_filtered$PRICE_standardized
+data_filtered_rf <- data_filtered[,c("BEDS", "BATH", "PROPERTYSQFT", "log_PRICE", "SUBLOCALITY_encoded")]
+X <- data_filtered_rf[, c("BEDS", "BATH", "PROPERTYSQFT", "SUBLOCALITY_encoded")]
+Y <- data_filtered_rf$log_PRICE
 ```
 
 Splitting the data into training and testing sets
 ```{r}
 set.seed(42)
 train_indices <- createDataPartition(Y, p = 0.8, list = FALSE)
-train_data <- data_filtered[train_indices, ]
-test_data <- data_filtered[-train_indices, ]
-
-# testing set
-X_test <- test_data[, c('SUBLOCALITY_encoded', 'BEDS', 'BATH', 'PROPERTYSQFT')]
-Y_test <- test_data$PRICE
-
-# training set
-X_train <- train_data[, c('SUBLOCALITY_encoded', 'BEDS', 'BATH', 'PROPERTYSQFT')]
-Y_train <- train_data$PRICE
+train_data <- data_filtered_rf[train_indices, ]
+test_data <- data_filtered_rf[-train_indices, ]
 ```
 
 # Random Forest Classifer 
 ```{r}
-rf_model <- randomForest(PRICE_standardized ~ ., data = train_data, ntree = 100)
-print(rf_model)
+rf_model_nointeract <- randomForest(log_PRICE ~ ., data = train_data, ntree = 500)
+rf_model_interact <- randomForest(log_PRICE ~ . + BEDS*BATH, data = train_data, ntree = 500)
 ```
 
 Now we can use the trained model to make predictions based on the test set
 ```{r}
-rf_predictions <- predict(rf_model, newdata = test_data)
+rf_predictions <- predict(rf_model_nointeract, newdata = test_data)
 
 # Evaluate the performance of the Random Forest model
-rf_mse <- mean((rf_predictions - test_data$PRICE_standardized)^2)
+rf_mse <- mean((rf_predictions - test_data$log_PRICE)^2)
 rf_rmse <- sqrt(rf_mse)
-rf_r_squared <- 1 - (rf_mse / var(test_data$PRICE))
+rf_r_squared <- 1 - (rf_mse / var(test_data$log_PRICE))
 
-cat("Mean Squared Error (MSE):", rf_mse, "\n")
-cat("Root Mean Squared Error (RMSE):", rf_rmse, "\n")
-cat("R-squared:", rf_r_squared, "\n")
+cat("Mean Squared Error (MSE) - No interaction:", rf_mse, "\n")
+cat("Root Mean Squared Error (RMSE) - No interaction:", rf_rmse, "\n")
+cat("R-squared - No interaction:", rf_r_squared, "\n")
+
+rf_predictions_int <- predict(rf_model_interact, newdata = test_data)
+
+# Evaluate the performance of the Random Forest model
+rf_mse <- mean((rf_predictions_int - test_data$log_PRICE)^2)
+rf_rmse <- sqrt(rf_mse)
+rf_r_squared <- 1 - (rf_mse / var(test_data$log_PRICE))
+
+cat("Mean Squared Error (MSE) - interact:", rf_mse, "\n")
+cat("Root Mean Squared Error (RMSE) - interact:", rf_rmse, "\n")
+cat("R-squared - interact:", rf_r_squared, "\n")
 ```
 
 **Insights:** 
@@ -365,28 +410,53 @@ cat("R-squared:", rf_r_squared, "\n")
 
 Visualizing the predicted values against the actual values to see how well the model aligns with the true outcomes.
 ```{r}
-plot(test_data$PRICE_standardized, rf_predictions, 
-     main = "Actual vs. Predicted Prices",
-     xlab = "Actual Prices",
-     ylab = "Predicted Prices",
-     col = "blue")
-abline(0, 1, col = "red")
+# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig11.png")
+ggplot(data = test_data, aes(x = log_PRICE, y = rf_predictions)) +
+  geom_point(color = "blue", alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
+  labs(title = "Actual vs. Predicted Prices",
+       x = "Actual Prices",
+       y = "Predicted Prices") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+# dev.off()
 ```
 
 Residual Analysis
 ```{r}
-residuals <- rf_predictions - test_data$PRICE_standardized
-plot(rf_predictions, residuals, 
-     main = "Residual Analysis",
-     xlab = "Predicted Prices",
-     ylab = "Residuals",
-     col = "green")
-abline(h = 0, col = "red")
+# Create a data frame for ggplot
+residuals <- rf_predictions - test_data$log_PRICE
+residual_data <- data.frame(Predicted = rf_predictions, Residuals = residuals)
+
+# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig12.png")
+# Create the plot
+ggplot(residual_data, aes(x = Predicted, y = Residuals)) +
+  geom_point(color = "darkgreen") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residual Analysis",
+       x = "Predicted Prices",
+       y = "Residuals") +
+  theme_minimal()
+# dev.off()
 ```
 
 Feature Importance
 ```{r}
-varImpPlot(rf_model, main = "Variable Importance Plot")
+# Extract feature importance from the random forest model
+feature_importance <- rf_model_nointeract$importance
+
+# Sort features based on importance
+sorted_feature_importance <- feature_importance[order(-feature_importance[, 1]), , drop = FALSE]
+
+# Visualize feature importance
+ # png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig13.png")
+barplot(sorted_feature_importance[, 1], names.arg = rownames(sorted_feature_importance),
+        main = "Feature Importance",
+        xlab = "Importance",
+        col = "darkgreen",
+        cex.names = 0.65,
+        las = 1)  
+ # dev.off()
 ```
 
 
