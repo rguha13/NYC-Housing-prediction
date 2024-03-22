@@ -3,9 +3,9 @@ title: "STAT 692 Final Project: NYC Housing market price modeling by location"
 author: "Riana Guha"
 date: "Spring 2024"
 output:
+  pdf_document: default
   html_document: 
     toc: yes
-  pdf_document: default
 urlcolor: cyan
 ---
 
