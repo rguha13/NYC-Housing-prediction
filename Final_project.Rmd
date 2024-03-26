@@ -63,12 +63,12 @@ data <- read.csv("NY-House-Dataset.csv")
 #dim(data) # the dataset contains 4801 rows and 17 columns
 colSums(is.na(data)) # checking for missing values per column - No missing values
 
-data_filtered = data[,c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT', 'SUBLOCALITY', 'STREET_NAME', 'LONG_NAME')] # filtering data to keep relevant columns
+data_filtered = data[,c('PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT', 'LOCALITY', 'SUBLOCALITY', 'STREET_NAME', 'LONG_NAME')] # filtering data to keep relevant columns
 #colnames(data_filtered) # verifying column names
 dim(data_filtered) # it is now a 4801x7 dataset
 head(data_filtered)
-# latex_table <- xtable(head(data_filtered))
-# print(latex_table, include.rownames = FALSE)
+ latex_table <- xtable(head(data_filtered))
+ print(latex_table, include.rownames = FALSE)
 ```
 
 The filtered dataset has 4801 rows and 7 columns. The columns are - **PRICE, BEDS, BATH, PROPERTYSQFT, SUBLOCALITY, STREET_NAME, LONG_NAME**.
@@ -326,7 +326,7 @@ ggplot(average_prices, aes(x = SUBLOCALITY, y = Average_Price, fill = SUBLOCALIT
 
 ## Correlation analysis
 ```{r}
-# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig13.png")
+# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig14.png")
 # Selecting columns for correlation analysis
 corr_columns <- c('log_PRICE', 'BEDS', 'BATH', 'PROPERTYSQFT')
 
@@ -344,21 +344,35 @@ corrplot(
   title = 'Correlation Matrix with Coefficients',
   mar = c(1, 1, 1, 1)  # Adjust the margin to prevent overlap
 )
-# dev.off()
+ # dev.off()
 ```
 
 # Predictive Modeling
 Encoding categorical variables
 ```{r}
 data_filtered$SUBLOCALITY_encoded <- as.integer(as.factor(data_filtered$SUBLOCALITY))
-# latex_table4 <- xtable(head(data_filtered[,c("SUBLOCALITY", "SUBLOCALITY_encoded")]))
-# print(latex_table4, include.rownames = FALSE)
+data_filtered$LOCALITY_encoded <- as.integer(as.factor(data_filtered$LOCALITY))
+data_filtered$LONG_NAME_encoded <- as.integer(as.factor(data_filtered$LONG_NAME))
+data_filtered$STREET_NAME_encoded <- as.integer(as.factor(data_filtered$STREET_NAME))
+# unique_sublocality <- unique(data_filtered[, c("SUBLOCALITY", "SUBLOCALITY_encoded")])
+# latex_table4 <- xtable(head(unique_sublocality))
+# 
+# unique_locality <- unique(data_filtered[, c("LOCALITY", "LOCALITY_encoded")])
+# latex_table5 <- xtable(head(unique_locality))
+# 
+# unique_long_name <- unique(data_filtered[, c("LONG_NAME", "LONG_NAME_encoded")])
+# latex_table6 <- xtable(head(unique_long_name))
+# 
+# unique_street_name <- unique(data_filtered[, c("STREET_NAME", "STREET_NAME_encoded")])
+# latex_table7 <- xtable(head(unique_street_name))
+# 
+#  print(latex_table7, include.rownames = FALSE)
 ```
 
 Selecting the features (X) and the target (Y)
 ```{r}
-data_filtered_rf <- data_filtered[,c("BEDS", "BATH", "PROPERTYSQFT", "log_PRICE", "SUBLOCALITY_encoded")]
-X <- data_filtered_rf[, c("BEDS", "BATH", "PROPERTYSQFT", "SUBLOCALITY_encoded")]
+data_filtered_rf <- data_filtered[,c("BEDS", "BATH", "PROPERTYSQFT", "log_PRICE", "SUBLOCALITY_encoded", "LOCALITY_encoded", "LONG_NAME_encoded", "STREET_NAME_encoded")]
+X <- data_filtered_rf[, c("BEDS", "BATH", "PROPERTYSQFT", "SUBLOCALITY_encoded", "LOCALITY_encoded", "LONG_NAME_encoded", "STREET_NAME_encoded")]
 Y <- data_filtered_rf$log_PRICE
 ```
 
@@ -373,7 +387,7 @@ test_data <- data_filtered_rf[-train_indices, ]
 # Random Forest Classifer 
 ```{r}
 rf_model_nointeract <- randomForest(log_PRICE ~ ., data = train_data, ntree = 500)
-rf_model_interact <- randomForest(log_PRICE ~ . + BEDS*BATH, data = train_data, ntree = 500)
+# rf_model_interact <- randomForest(log_PRICE ~ . + BEDS:BATH, data = train_data, ntree = 500)
 ```
 
 Now we can use the trained model to make predictions based on the test set
@@ -410,7 +424,7 @@ cat("R-squared - interact:", rf_r_squared, "\n")
 
 Visualizing the predicted values against the actual values to see how well the model aligns with the true outcomes.
 ```{r}
-# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig11.png")
+ # png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig11.png")
 ggplot(data = test_data, aes(x = log_PRICE, y = rf_predictions)) +
   geom_point(color = "blue", alpha = 0.5) +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
@@ -419,7 +433,7 @@ ggplot(data = test_data, aes(x = log_PRICE, y = rf_predictions)) +
        y = "Predicted Prices") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
-# dev.off()
+ # dev.off()
 ```
 
 Residual Analysis
@@ -428,7 +442,7 @@ Residual Analysis
 residuals <- rf_predictions - test_data$log_PRICE
 residual_data <- data.frame(Predicted = rf_predictions, Residuals = residuals)
 
-# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig12.png")
+ # png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig12.png")
 # Create the plot
 ggplot(residual_data, aes(x = Predicted, y = Residuals)) +
   geom_point(color = "darkgreen") +
@@ -437,7 +451,7 @@ ggplot(residual_data, aes(x = Predicted, y = Residuals)) +
        x = "Predicted Prices",
        y = "Residuals") +
   theme_minimal()
-# dev.off()
+ # dev.off()
 ```
 
 Feature Importance
@@ -449,13 +463,30 @@ feature_importance <- rf_model_nointeract$importance
 sorted_feature_importance <- feature_importance[order(-feature_importance[, 1]), , drop = FALSE]
 
 # Visualize feature importance
- # png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig13.png")
-barplot(sorted_feature_importance[, 1], names.arg = rownames(sorted_feature_importance),
+# png(filename="C:/Users/riana/OneDrive/Desktop/Spring 2024/STAT 692/fig13.png")
+# Define colors for each bar
+bar_colors <- viridis_pal(option = "D")(length(sorted_feature_importance[, 1]))
+
+# Generate barplot with custom colors
+barplot(sorted_feature_importance[, 1], 
+        names.arg = rownames(sorted_feature_importance),
         main = "Feature Importance",
         xlab = "Importance",
-        col = "darkgreen",
-        cex.names = 0.65,
-        las = 1)  
+        col = bar_colors,  # Using custom colors
+        cex.names = 0.45,
+        las = 1,
+        cex.axis = 0.8,  # Adjusting axis label size
+        srt = 45,
+        xaxt = "n"
+        )
+
+# Create legend
+legend("topright", 
+       legend = rownames(sorted_feature_importance),  # Variable names
+       fill = bar_colors,  # Colors corresponding to the bars
+       title = "Variables",
+       cex = 0.8)  # Title of the legend
+
  # dev.off()
 ```
 
