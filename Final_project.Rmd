@@ -226,6 +226,9 @@ qqline(data_filtered$log_PRICE, col = 2)
 sapply(data_filtered[,c("PRICE", "BEDS", "BATH", "PROPERTYSQFT")], skewness)
 sapply(data_filtered[,c("log_PRICE", "BEDS", "BATH", "PROPERTYSQFT")], skewness)
 
+#convert bath to integer
+data_filtered$BATH <- as.integer(data_filtered$BATH)
+data_filtered$PROPERTYSQFT <- as.integer(data_filtered$PROPERTYSQFT)
 ```
 
 
@@ -387,7 +390,7 @@ test_data <- data_filtered_rf[-train_indices, ]
 # Random Forest Classifer 
 ```{r}
 rf_model_nointeract <- randomForest(log_PRICE ~ ., data = train_data, ntree = 500)
-# rf_model_interact <- randomForest(log_PRICE ~ . + BEDS:BATH, data = train_data, ntree = 500)
+rf_model_interact <- randomForest(log_PRICE ~ . + BEDS:BATH, data = train_data, ntree = 500)
 ```
 
 Now we can use the trained model to make predictions based on the test set
